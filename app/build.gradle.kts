@@ -74,8 +74,12 @@ android {
         buildConfigField("boolean", "FEATURE_SCREENSCRAPER", featureFlag("screenScraper").toString())
 
         ndk {
-            // Thor is arm64; add armeabi-v7a later only if a target device needs it.
-            abiFilters += "arm64-v8a"
+            // The Thor is arm64, so that is the default. A 32-bit device (armeabi-v7a) needs its own build:
+            // `-Ppokedaisy.abis=armeabi-v7a` (or `arm64-v8a,armeabi-v7a` for one APK with both), or the same
+            // key in local.properties.
+            val abis = (findProperty("pokedaisy.abis") ?: localProps?.getProperty("pokedaisy.abis") ?: "arm64-v8a")
+                .toString().split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            abiFilters += abis
         }
         externalNativeBuild {
             cmake {
