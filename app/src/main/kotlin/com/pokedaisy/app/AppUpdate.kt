@@ -175,6 +175,23 @@ class AppUpdateFlow(private val activity: ComponentActivity) {
 
     private fun apkName(r: AppUpdater.Release) = "PokeDaisy-${r.version}.apk"
 
+    companion object {
+        private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /**
+         * Clears update APKs nothing will install any more, at app start (a debug build never runs [check], and a
+         * release one only when online): the one for this version or an older one went through, and anything
+         * else - a newer one that was never installed, a half download - goes after a day. Blocking: call off the UI thread.
+         */
+        fun cleanSpentApks(cacheDir: File, current: String = BuildConfig.VERSION_NAME) {
+            File(cacheDir, "updates").listFiles()?.forEach { f ->
+                val isApk = f.name.startsWith("PokeDaisy-") && f.name.endsWith(".apk")
+                val spent = isApk && !AppUpdater.isNewer(f.name.removePrefix("PokeDaisy-").removeSuffix(".apk"), current)
+                if (spent || System.currentTimeMillis() - f.lastModified() > DAY_MS) f.delete()
+            }
+        }
+    }
+
     private fun launchInstaller(apk: File) {
         val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.updates", apk)
         val intent = Intent(Intent.ACTION_VIEW)
