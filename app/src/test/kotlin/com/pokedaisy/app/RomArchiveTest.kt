@@ -188,13 +188,13 @@ class RomArchiveTest {
         assertEquals(ra, SavesLocation.resolve(saves, pack))
     }
 
-    @Test fun playableKeepsOnlyTheLastFew() {
+    @Test fun playableKeepsOnlyTheLastOne() {
         val cache = tmp.newFolder("cache")
         val outs = (1..5).map { i ->
             RomArchive.playable(zip("Game$i.zip", "Game$i.gba" to rom), cache)!!.also { it.parentFile!!.setLastModified(1000L * i) }
         }
         val kept = File(cache, "rom-archives").listFiles()!!.size
-        assertEquals(3, kept)
+        assertEquals(1, kept)
         assertTrue(outs.last().exists())
     }
 }
