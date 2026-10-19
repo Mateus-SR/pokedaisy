@@ -66,9 +66,9 @@ Two more reasons a game might start from its save:
 
 ## The music goes silent when I fast-forward
 
-That's `FF MUSIC` set to `STEADY` (the default) getting ready. Instead of speeding the music up into a squeak, `STEADY` plays a clean recording of the song at its normal tempo while the game races ahead. Those recordings are made from your ROM, one song at a time, the first time you play a game, and until a song's recording is ready it stays quiet while you fast-forward.
+That's `FF MUSIC` set to `STEADY` (the default) getting ready. Instead of speeding the music up into a squeak, `STEADY` plays a clean recording of the song at its normal tempo while the game races ahead. Those recordings are made from your ROM, one song at a time, the first time you hear each song, and until a song's recording is ready (a few seconds) it stays quiet while you fast-forward. Only the most recent songs are kept, up to 32 MB across all your games, so a song you haven't heard for a long while may need recording again.
 
-Play for a while and it fills in. If you'd rather always hear something, set `FF MUSIC` to `SPED-UP` (the game's own sound, faster) in either Settings screen. See [Fast-forward](fast-forward.md).
+It's quiet for only the first few seconds of each song. If you'd rather always hear something, set `FF MUSIC` to `SPED-UP` (the game's own sound, faster) in either Settings screen. See [Fast-forward](fast-forward.md).
 
 ## The game feels choppy or the device runs hot
 
@@ -77,7 +77,7 @@ Turn on `FPS / CPU` (Settings, `SCREEN` group) to see what's going on. At normal
 If it's below 60 or stutters:
 
 - Set `SMOOTHING` to `OFF` and `FILTER` to `NONE` under `SHADERS`, then add them back one at a time.
-- The first time you play a game with `FF MUSIC` on `STEADY`, PokeDaisy records its music in the background, which keeps a second processor core busy for a while. It's capped, but on a small device you may notice the heat. `SPED-UP` or `OFF` skips it.
+- With `FF MUSIC` on `STEADY`, PokeDaisy records each song the first time you hear it, which keeps a second processor core busy for a few seconds. `SPED-UP` or `OFF` skips it.
 - Close other apps running in the background, and check the device isn't in a battery saver mode.
 
 ## Achievements won't unlock

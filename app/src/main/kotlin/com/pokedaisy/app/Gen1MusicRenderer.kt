@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
  * STEADY FF music for a Game Boy game ([FfMusicRenderer]'s twin): each song rendered on its
  * own on the second core, the game's own PlayMusic called from a parked main loop
  * ([MgbaCore.pkRenderGbPark] / [MgbaCore.pkRenderGbCall]), and cut where the sound engine
- * comes round ([Gen1LoopWatch]). Songs the player hears first, then the whole list once
- * in the background. Keys are [Gen1Music.key], what [Gen1Music.current] reads off the
+ * comes round ([Gen1LoopWatch]). Only songs the player hears are recorded, when they start
+ * (nothing ahead of time: see [FfMusicCache], which is capped). Keys are [Gen1Music.key], what [Gen1Music.current] reads off the
  * live game. Never touches the player's game or save.
  */
 class Gen1MusicRenderer(
@@ -23,7 +23,7 @@ class Gen1MusicRenderer(
     private val tables: Gen1MusicTables,
     private val cache: FfMusicCache,
 ) : SongRenderer {
-    // String keys: heard now (first) or the background pass (last).
+    // String keys: songs heard now.
     private val queue = LinkedBlockingDeque<Any>()
     private val requested = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     @Volatile private var stopped = false
@@ -41,7 +41,7 @@ class Gen1MusicRenderer(
     }
 
     override fun request(key: String) {
-        if (!stopped && Gen1Music.parse(key) != null && !cache.complete(key) && requested.add(key)) queue.offerFirst(key)
+        if (!stopped && Gen1Music.parse(key) != null && key !in noClip && key !in requested && !cache.complete(key) && requested.add(key)) queue.offerFirst(key)
     }
 
     override fun stop() {
@@ -57,10 +57,6 @@ class Gen1MusicRenderer(
         cache.complete(key) || !failed && !stopped && Gen1Music.parse(key) != null && key !in noClip
 
     private fun run() {
-        val background = if (cache.prefetched) emptyList() else tables.songs.map { (b, id) -> Background(Gen1Music.key(b, id)) }
-        background.forEach { queue.offerLast(it) }
-        var left = background.size
-        var allOk = true
         var core: Core? = null
         try {
             while (!stopped) {
@@ -69,27 +65,20 @@ class Gen1MusicRenderer(
                     queue.take()
                 }
                 if (job === STOP || stopped) break
-                val bg = job is Background
-                val key = if (job is Background) job.key else job as String
-                // A background song that failed on earlier launches too is left alone (FfMusicRenderer's rule).
-                val outcome = if (cache.complete(key) || (bg && cache.has(key)) || (bg && cache.failures(key) >= 2)) Outcome.CACHED
-                else (core ?: Core().also { core = it }).record(key, bg)
-                if (!bg && !cache.complete(key) && (outcome == Outcome.FAILED || outcome == Outcome.ENDED)) noClip.add(key)
-                if (bg) {
-                    if (outcome == Outcome.DEFERRED) { queue.offerLast(job); continue }
-                    if (outcome == Outcome.FAILED) {
-                        cache.noteFailure(key)
-                        allOk = cache.failures(key) >= 2 && allOk
-                    }
-                    if (--left == 0 && allOk) cache.prefetched = true
+                val key = job as String
+                try {
+                    val outcome = if (cache.complete(key)) Outcome.CACHED
+                    else (core ?: Core().also { core = it }).record(key)
+                    if (!cache.complete(key) && (outcome == Outcome.FAILED || outcome == Outcome.ENDED)) noClip.add(key)
+                } finally {
+                    // Asked for again if the cache lets this clip go while its song still plays.
+                    requested.remove(key)
                 }
             }
         } finally {
             core?.close()
         }
     }
-
-    private class Background(val key: String)
 
     private enum class Outcome { CACHED, ENDED, FAILED, DEFERRED }
 
@@ -113,7 +102,7 @@ class Gen1MusicRenderer(
         private val buf by lazy { ShortArray(sampleRate * 2 * FfMusicCache.CAPTURE_SECONDS) }
         private val frameStart = IntArray(WATCHDOG_FRAMES + 2)
 
-        fun record(key: String, background: Boolean): Outcome {
+        fun record(key: String): Outcome {
             if (!parked) return Outcome.FAILED
             val (bank, id) = Gen1Music.parse(key) ?: return Outcome.FAILED
             repeat(ATTEMPTS) {
@@ -124,7 +113,6 @@ class Gen1MusicRenderer(
                 var stopAt = buf.size
                 var ended = false
                 while (pos < stopAt && frames < WATCHDOG_FRAMES && !stopped) {
-                    if (background && liveRequestWaiting(key)) return Outcome.DEFERRED
                     frameStart[frames++] = pos
                     MgbaCore.pkRenderRunFrame()
                     val n = MgbaCore.pkRenderReadAudio(scratch)
@@ -158,11 +146,6 @@ class Gen1MusicRenderer(
             }
             Log.w("pokedaisy", "GB FF music: $key kept getting interrupted")
             return Outcome.FAILED
-        }
-
-        private fun liveRequestWaiting(key: String): Boolean {
-            val head = queue.peekFirst() as? String ?: return false
-            return head != key && !cache.complete(head)
         }
 
         /** PlayMusic(id, bank) from the parked loop; true once its channels are playing it. */

@@ -804,7 +804,9 @@ class EmulatorEngine(
                 if (mode != FfMusicMode.STEADY) requestedKey = null
                 else if (ffMusicKey != null && ffMusicKey != requestedKey) {
                     requestedKey = ffMusicKey
-                    if (!ffMusicCache.complete(ffMusicKey)) runCatching { onFfMusicWanted?.invoke(ffMusicKey) }
+                    ffMusicCache.playing = ffMusicKey
+                    if (ffMusicCache.complete(ffMusicKey)) ffMusicCache.touch(ffMusicKey)
+                    else runCatching { onFfMusicWanted?.invoke(ffMusicKey) }
                 }
                 // The clip follows the FF the player asked for, not SMART's 1x stretches: it
                 // plays straight through a menu instead of handing over to the game's music
@@ -812,6 +814,11 @@ class EmulatorEngine(
                 val clip = if (ffWanted && mode == FfMusicMode.STEADY && ffMusicKey != null) {
                     ffMusicCache.fileIfCached(ffMusicKey)
                 } else null
+                // The cache is capped: a clip it let go of while its song was still playing is asked for again
+                // (the renderer ignores a song it is already on), so FF doesn't stay silent for good.
+                if (ffWanted && mode == FfMusicMode.STEADY && ffMusicKey != null && clip == null) {
+                    runCatching { onFfMusicWanted?.invoke(ffMusicKey) }
+                }
                 if (clip != lastFfMusicFile) {
                     lastFfMusicFile = clip
                     onFfMusicChanged?.invoke(

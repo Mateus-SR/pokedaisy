@@ -78,7 +78,7 @@ Sped-up game music turns into chipmunk noise. `FF MUSIC` picks what you hear whi
 - **`SPED-UP`** plays the game's own sound at the game's speed.
 - **`OFF`** is silence while fast-forwarding.
 
-`STEADY` works by preparing a clean recording of each song from your ROM, in the background. The first time you play a game, it goes through the game's songs once; a song that isn't ready yet is silent during fast-forward. Once a song is done, it's kept, so this only happens the first time you hear it.
+`STEADY` works by preparing a clean recording of each song from your ROM, the first time you hear it. Until that recording is ready, which takes a few seconds, the song is silent during fast-forward. Recordings are compressed without any loss of quality, and PokeDaisy keeps up to 32 MB of them for all your games together. When that fills up, the songs you haven't heard in the longest time go first, and a song that was let go is simply recorded again the next time you hear it while fast-forwarding.
 
 > [!NOTE]
 > If a song sounds wrong or stays silent with `STEADY`, switch to `SPED-UP`, and let us know which game and where.
