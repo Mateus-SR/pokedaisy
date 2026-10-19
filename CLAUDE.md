@@ -716,16 +716,15 @@ parking the booted game on a `b .` so its intro can't switch songs (only once th
 fully on - Unbound froze otherwise). Until a song's clip exists STEADY is silent
 through FF (`SongRenderer.willRender`; the user's call - it used to play the song SPED-UP meanwhile); only a song
 that can't get a clip (an unrecognised sound engine, FAILED / ENDED / not in the table, a renderer that died)
-plays SPED-UP. Every ROM pre-renders its music once in the background: FireRed/LeafGreen/Emerald-sized
-ROMs their `MapMusic*.kt` list, any other ROM every `gSongTable` entry on the BGM player
-(`M4aSongs.bgmSongIds`, `ms` 0); a song being heard pre-empts that pass mid-recording, songs that end by
-themselves (fanfares) count as done. **Clips loop where the song loops** (`M4aLoop.kt`, cache v6): the BGM's
+plays SPED-UP. **Songs are recorded only when heard** (v7, the "Lite" storage work: the old background pass over the whole
+soundtrack wrote ~700 MB of WAV per ROM, shown as "user data"): the engine asks `request(key)` when a song starts (and again if the cache let its clip go while it plays); see the storage paragraph below.
+**Clips loop where the song loops** (`M4aLoop.kt`): the BGM's
 first track jumping back through its GOTO (0xB2) marks the loop end, the frame its main stream passed the
 GOTO target the start (no intro: two GOTOs apart); `M4aLoopSplice` cuts one period starting 1 s into the
-loop, tuned to the sample. The recording before that cut is saved as `<key>.intro.wav`: `FfMusicPlayer` plays it once, then
+loop, tuned to the sample. The recording before that cut is saved as `<key>.intro.flac`: `FfMusicPlayer` plays it once, then
 hands over gaplessly to the loop (`setNextMediaPlayer`), both started at the song's own position
 (`Clip.songStartedAt`, when the BGM key changed). Without the intro a song with one started ~9 s in
-(FireRed's Route 7). A heard song whose clip predates intros is re-recorded; the background pass isn't redone. The old audio-envelope `LoopDetector` cut battle themes to ~3 s and looped back
+(FireRed's Route 7). The old audio-envelope `LoopDetector` cut battle themes to ~3 s and looped back
 to the intro. **The clip follows the FF the player asked for** (`EmulatorEngine.requestedSpeed`), not SMART's
 temporary 1x: it plays straight through a menu (game audio muted meanwhile, menu SFX included) instead of
 handing over to the game's music and restarting from 0:00 when FF resumed; and a clip that comes back (after a menu, or FF
@@ -733,6 +732,18 @@ off for a moment) picks up where the song is by now (`Clip.songStartedAt`). Debu
 render core headless with `native-capture/mgba_dump`'s `call` / `park` / `bgm` / `wav`. The
 SETTINGS title also shows the device battery (`BatteryIndicator`, fed by the activity through
 `DeviceBattery`).
+
+**Storage budget (the "Lite" work, 2026-10-18; the user's ceiling is 100 MB for the app + its data, imported ROM copies aside)**:
+an install was ~30 MB of APK and 700 MB of "user data" - the STEADY pass wrote every song of every ROM as 48 kHz WAV under
+`<external files>/ffmusic/`. Now `FfMusicCache` (v7) writes a song's loop and intro as lossless FLAC (`FlacWriter.kt`: LPC +
+Rice, ~3x smaller than the WAV, decodes sample for sample to the same PCM - `FlacWriterTest` has its own decoder, and it was
+checked with ffmpeg; `MediaPlayer` plays it as it did the WAV) only when the song is heard, and keeps every ROM's clips under
+`FfMusicCache.MAX_BYTES` (32 MB), pushing out the least recently played pair (`touch` on use, the song `playing` and the one
+just written are never pushed out). The engine asks again for a clip the cache let go while its song still plays. Other
+caps: one extracted archive ROM (`RomArchive.KEEP_EXTRACTED`), update APKs cleared at app start (`AppUpdateFlow.cleanSpentApks`),
+states unchanged (raw mGBA states, ~10 slots a ROM). The small `sfx/` WAVs (click, fanfare) stay WAV. A new feature that writes
+files per ROM or per song needs a cap, and its number goes in this paragraph. The 32-bit workflow (`build-armv7.yml`) keeps the
+debug signing key in an `actions/cache` so its APKs update over each other.
 
 **STATUS BAR** (SETTINGS on either screen, `Prefs.statusBar`, off by default, live-toggled): a
 white title-window strip on top of the game, exactly as wide as it (`GameStatusBar`, laid out by
@@ -1319,9 +1330,8 @@ top-left corner on a small dark box (the HUD's messages moved top-right) - frame
 (`CpuUsage`, /proc/self/stat over all cores), twice a second. A tap on it or near it (`TOUCH_REACH`) opens the panel
 (`PerfReading`, shadowed text with no box - the user's call: box on the short one, none on the long): frames on screen, late frames (the GL wait timing out), frame time avg / worst,
 emulation load, refresh + pacing, speed, audio underruns, battery temperature, thermal status, memory.
-**Heat**: the STEADY background pass runs at most 10x real time (`BACKGROUND_FRAME_NANOS`; songs being heard go flat
-out), and gives up on a song that failed on 2 launches (`FfMusicCache.failures`) - a failing song kept the pass, and a
-second core, running on every launch.
+**Heat**: STEADY records a song only when it's heard (flat out, a few seconds, then the render core is closed after 30 s
+idle); the old whole-soundtrack background pass (throttled to 10x real time, with a per-song failure count) is gone.
 **Updater loop** (same report: the bar filled, nothing installed): with "install unknown apps" off, the settings page
 failing to open left only a toast and UPDATE downloading again; now the installer opens anyway (it asks itself), and an
 APK already downloaded for the offered release is reused (`AppUpdateFlow.check` keeps it).
@@ -1351,7 +1361,7 @@ need All files access first (`StorageAccess`); setup resumes the pick in `onResu
 **Zipped ROMs** (`RomArchive.kt`, `.zip` via java.util.zip, `.7z` via commons-compress + xz): the linked
 folder and `files/roms/` list archives as-is; `RomIdentity` / `SaveStates.crc32` / `CompanionSupport`
 stream the ROM out of them (never unpacked for that), and only playing extracts one into
-`cacheDir/rom-archives/` (`RomArchive.playable`, last 3 kept; `PokeDaisyActivity.romData` is what the
+`cacheDir/rom-archives/` (`RomArchive.playable`, the last one kept; `PokeDaisyActivity.romData` is what the
 core and the ROM readers load, `rom` stays the archive). Saves and the default library name follow the ROM
 *inside* (`RomArchive.saveNames` / `baseName`: RetroArch names a zipped game's save that way), falling back
 to a save already under the archive's own name. Imports (+, frontend copies, VIEW) unpack instead, by

@@ -31,8 +31,9 @@ object RomArchive {
         (if (com.pokedaisy.app.companion.data.TelemetrySampler.GAME_BOY_SUPPORT) setOf("gb", "gbc") else emptySet())
     private const val MIN_ROM_BYTES = 0x200L
     private const val MAX_ROM_BYTES = 32L shl 20
-    /** How many extracted ROMs [playable] keeps; older ones go. */
-    private const val KEEP_EXTRACTED = 3
+    /** How many extracted ROMs [playable] keeps; older ones go. One: a ROM is up to 32 MB, and the next play of an
+     * archive just unpacks it again (a second or two). */
+    private const val KEEP_EXTRACTED = 1
     private val SEVEN_Z_MAGIC = byteArrayOf('7'.code.toByte(), 'z'.code.toByte(), 0xBC.toByte(), 0xAF.toByte(), 0x27, 0x1C)
 
     /** A ROM inside an archive: its path there and uncompressed size. */

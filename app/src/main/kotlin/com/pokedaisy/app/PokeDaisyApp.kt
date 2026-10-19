@@ -12,5 +12,8 @@ class PokeDaisyApp : Application() {
         prefs.appOpenCount = (prefs.appOpenCount + 1).coerceAtMost(1000)
         CrashReports.apply(prefs.crashReportsEnabled)
         ScreenScraperClient.enabled = FeatureFlags.screenScraper(this)
+        // An installed update's APK (~25 MB) would sit in the cache until the next update check.
+        Thread({ runCatching { AppUpdateFlow.cleanSpentApks(cacheDir) } }, "pokedaisy-update-cleanup")
+            .apply { isDaemon = true; priority = Thread.MIN_PRIORITY; start() }
     }
 }
